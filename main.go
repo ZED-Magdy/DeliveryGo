@@ -29,6 +29,7 @@ func main() {
 	trans, validate := initValidator()
 
 	r := mux.NewRouter()
+	r.Use(Middlewares.CORSMethodMiddleware)
 	// * Routes
 	registerRoutes(r, db, validate, trans)
 
