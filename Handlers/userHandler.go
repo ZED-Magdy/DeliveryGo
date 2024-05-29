@@ -3,14 +3,15 @@ package Handlers
 import (
 	"ZED-Magdy/Delivery-go/Dtos"
 	"ZED-Magdy/Delivery-go/Models"
-	"ZED-Magdy/Delivery-go/Services"
+	services "ZED-Magdy/Delivery-go/Services"
 	"encoding/json"
 	"net/http"
 	"strings"
-	"github.com/golang-jwt/jwt/v5"
+
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	"github.com/go-sql-driver/mysql"
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -38,21 +39,11 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"error": "Invalid request payload"}`))
 		return
 	}
-	err = h.validator.Struct(request)
-	if err != nil {
-		if _, ok := err.(*validator.InvalidValidationError); ok {
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(`{"error": "Error validating request"}`))
-			return
-		}
-		errs := err.(validator.ValidationErrors)
-		errors := errs.Translate(h.trans)
-
+	validationResult := services.Validate(h.validator, h.trans, request)
+	if validationResult != nil {
 		w.WriteHeader(http.StatusUnprocessableEntity)
-		errors_marshalled, _ := json.Marshal(errors)
-		w.Write(errors_marshalled)
+		w.Write(validationResult)
 		return
-
 	}
 	hashedPassword, err := h.hashPassword(request.Password)
 	if err != nil {
@@ -112,21 +103,11 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"error": "Invalid request payload"}`))
 		return
 	}
-	err = h.validator.Struct(request)
-	if err != nil {
-		if _, ok := err.(*validator.InvalidValidationError); ok {
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(`{"error": "Error validating request"}`))
-			return
-		}
-		errs := err.(validator.ValidationErrors)
-		errors := errs.Translate(h.trans)
-
+	validationResult := services.Validate(h.validator, h.trans, request)
+	if validationResult != nil {
 		w.WriteHeader(http.StatusUnprocessableEntity)
-		errors_marshalled, _ := json.Marshal(errors)
-		w.Write(errors_marshalled)
+		w.Write(validationResult)
 		return
-
 	}
 	user := Models.User{}
 	h.db.Where("phone = ?", request.Phone).First(&user)
@@ -195,7 +176,6 @@ func (h *UserHandler) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
 
 	w.Write([]byte(user_marshalled))
 }
-
 
 func (*UserHandler) hashPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 7)
