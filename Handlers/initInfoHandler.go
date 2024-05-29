@@ -3,6 +3,7 @@ package Handlers
 import (
 	"ZED-Magdy/Delivery-go/Dtos"
 	"ZED-Magdy/Delivery-go/Models"
+	services "ZED-Magdy/Delivery-go/Services"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -52,6 +53,17 @@ func (h *InitInfoHandler) GetInitialInformation(w http.ResponseWriter, r *http.R
 		w.Write([]byte(`{"error": "You are out of our coverage area."}`))
 		return
 	}
+
+	user, err := services.NewAuthService(r, h.db).User()
+
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"error": "Unauthorized"}`))
+		return
+	}
+
+	h.db.Exec(`Update users set current_region_id = ? where id = ?`, region.ID, user.ID)
+
 	geofence := toGeofenceDto(region.Geofence)
 	regionDto := Dtos.RegionDto{
 		Name:     region.Name,
