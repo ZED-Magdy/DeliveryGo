@@ -2,7 +2,6 @@ package Dtos
 
 type RegionDto struct {
 	Name string `json:"name"`
-	Geofence GeofenceDto `json:"geofence"`
 }
 
 type GeofenceDto struct {

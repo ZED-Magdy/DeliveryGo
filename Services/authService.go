@@ -3,28 +3,28 @@ package services
 import (
 	"ZED-Magdy/Delivery-go/Models"
 	"errors"
-	"net/http"
 	"strings"
 
+	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
 	"gorm.io/gorm"
 )
 
 
 type AuthService struct {
-	request *http.Request
+	ctx *fiber.Ctx
 	db	  gorm.DB
 }
 
-func NewAuthService(request *http.Request, db gorm.DB) *AuthService {
+func NewAuthService(ctx *fiber.Ctx, db gorm.DB) *AuthService {
 	return &AuthService{
-		request: request,
+		ctx: ctx,
 		db: db,
 	}
 }
 
 func (a *AuthService) User() (*Models.User, error) {
-	authHeader := strings.Split(a.request.Header.Get("Authorization"), "Bearer ")
+	authHeader := strings.Split(a.ctx.Get("Authorization"), "Bearer ")
 	if len(authHeader) != 2 {
 		return nil, errors.New("Unauthorized")
 	}

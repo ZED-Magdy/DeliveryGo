@@ -3,18 +3,25 @@ package main
 import (
 	"ZED-Magdy/Delivery-go/Handlers"
 	"ZED-Magdy/Delivery-go/Middlewares"
+	"encoding/json"
+	"strings"
 	"ZED-Magdy/Delivery-go/Models"
 	"log"
-	"net/http"
 	"os"
-	"time"
-
+	// "github.com/eko/gocache/lib/v4/cache"
+	// redis_store "github.com/eko/gocache/store/redis/v4"
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	en_translations "github.com/go-playground/validator/v10/translations/en"
-	"github.com/gorilla/mux"
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/compress"
+	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/healthcheck"
+	"github.com/gofiber/fiber/v2/middleware/idempotency"
+	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/joho/godotenv"
+	// "github.com/redis/go-redis/v9"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
@@ -25,46 +32,45 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error loading .env file")
 	}
+	app := fiber.New(fiber.Config{
+		JSONEncoder: json.Marshal,
+		JSONDecoder: json.Unmarshal,
+	})
+	app.Use(cors.New(cors.Config{
+		AllowOrigins: "*",
+		AllowMethods: strings.Join([]string{
+			fiber.MethodGet,
+			fiber.MethodPost,
+			fiber.MethodHead,
+			fiber.MethodPut,
+			fiber.MethodDelete,
+			fiber.MethodPatch,
+			fiber.MethodOptions,
+		}, ","),
+		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
+	}))
+
+	app.Use(compress.New(compress.Config{
+		Level: compress.LevelBestSpeed, // 1
+	}))
+
+	app.Use(healthcheck.New(healthcheck.Config{
+		LivenessEndpoint:  "/health",
+		ReadinessEndpoint: "/ready",
+	}))
+
+	app.Use(idempotency.New())
+	app.Use(recover.New())
 	db := initDb()
 	trans, validate := initValidator()
-
-	r := mux.NewRouter()
-	r.Use(Middlewares.CORSMethodMiddleware)
-	// * Routes
-	registerRoutes(r, db, validate, trans)
-
-	srv := &http.Server{
-		Addr:         "127.0.0.1:8000",
-		Handler:      r,
-		WriteTimeout: 15 * time.Second,
-		ReadTimeout:  15 * time.Second,
-	}
-
-	log.Fatal(srv.ListenAndServe())
-}
-
-func registerRoutes(r *mux.Router, db *gorm.DB, validate *validator.Validate, trans ut.Translator) {
-	/**
-	* Handlers initialization
-	 */
-	initInfoHandler := Handlers.NewInitInfoHandler(*db)
 	userHandler := Handlers.NewUserHandler(*db, validate, trans)
-
-	/**
-	 * Routes registration
-	 */
-
-	authRoutes := mux.NewRouter().PathPrefix("/api").Subrouter()
-	authRoutes.Use(Middlewares.AuthMiddleware)
-
-	authRoutes.HandleFunc("/init-info", initInfoHandler.GetInitialInformation).Methods("GET")
-	authRoutes.HandleFunc("/user", userHandler.GetCurrentUser).Methods("GET")
-
-	r.HandleFunc("/api/register", userHandler.CreateUser).Methods("POST")
-	r.HandleFunc("/api/login", userHandler.Login).Methods("POST")
-
-	r.PathPrefix("/api").Handler(authRoutes)
-	http.Handle("/", r)
+	app.Post("/api/register", userHandler.CreateUser)
+	app.Post("/api/login", userHandler.Login)
+	initInfoHandler := Handlers.NewInitInfoHandler(*db)
+	authenticatedRoutes := app.Group("/api", Middlewares.AuthMiddleware)
+	authenticatedRoutes.Get("/user", userHandler.GetCurrentUser)
+	authenticatedRoutes.Get("/init-info", initInfoHandler.GetInitialInformation)
+	app.Listen(":8000")
 }
 
 func initValidator() (ut.Translator, *validator.Validate) {
@@ -98,3 +104,13 @@ func seed(db *gorm.DB) {
 	}
 
 }
+
+// func initCache(ctx context.Context) *cache.Cache[string] {
+// 	redisStore := redis_store.NewRedis(redis.NewClient(&redis.Options{
+// 		Addr: "127.0.0.1:6379",
+// 	}))
+
+// 	cacheManager := cache.New[string](redisStore)
+
+// 	return cacheManager
+// }

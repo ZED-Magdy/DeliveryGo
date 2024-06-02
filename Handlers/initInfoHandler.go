@@ -4,10 +4,9 @@ import (
 	"ZED-Magdy/Delivery-go/Dtos"
 	"ZED-Magdy/Delivery-go/Models"
 	services "ZED-Magdy/Delivery-go/Services"
-	"encoding/json"
 	"net/http"
-	"strconv"
 
+	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 )
 
@@ -21,15 +20,13 @@ func NewInitInfoHandler(db gorm.DB) *InitInfoHandler {
 	}
 }
 
-func (h *InitInfoHandler) GetInitialInformation(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	lat := r.URL.Query().Get("lat")
-	lng := r.URL.Query().Get("lng")
+func (h *InitInfoHandler) GetInitialInformation(c *fiber.Ctx) error {
+
+	lat := c.Query("lat")
+	lng := c.Query("lng")
 
 	if lat == "" || lng == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(`{"error": "lat and lng are required"}`))
-		return
+		return c.Status(http.StatusBadRequest).JSON(map[string]string{"message": "lat and lng are required"})
 	}
 
 	region := Models.Region{}
@@ -42,32 +39,21 @@ func (h *InitInfoHandler) GetInitialInformation(w http.ResponseWriter, r *http.R
 		FROM regions 
 		WHERE ST_Contains(geofence, ST_GeomFromText(?))`, "POINT("+lat+" "+lng+")").Scan(&region).Error
 
-	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"error": "not found."}`))
-		return
-	}
-	if region.ID == 0 {
-		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(strconv.FormatUint(uint64(region.PriceList.ID), 10)))
-		w.Write([]byte(`{"error": "You are out of our coverage area."}`))
-		return
+	if region.ID == 0 || err != nil {
+		return c.Status(http.StatusNotFound).JSON(map[string]string{"message": "Region not found"})
 	}
 
-	user, err := services.NewAuthService(r, h.db).User()
+	user, err := services.NewAuthService(c, h.db).User()
 
 	if err != nil {
-		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte(`{"error": "Unauthorized"}`))
-		return
+		return c.Status(http.StatusUnauthorized).JSON(map[string]string{"message": "Unauthorized"})
 	}
 
 	h.db.Exec(`Update users set current_region_id = ? where id = ?`, region.ID, user.ID)
 
 	geofence := toGeofenceDto(region.Geofence)
 	regionDto := Dtos.RegionDto{
-		Name:     region.Name,
-		Geofence: geofence,
+		Name: region.Name,
 	}
 	priceList := Models.PriceList{}
 	h.db.First(&priceList, region.PriceListId)
@@ -76,10 +62,11 @@ func (h *InitInfoHandler) GetInitialInformation(w http.ResponseWriter, r *http.R
 		CancellationCost: priceList.CancellationCost,
 	}
 
-	priceList_marshalled, _ := json.Marshal(priceListDto)
-	region_marshalled, _ := json.Marshal(regionDto)
-
-	w.Write([]byte("{\"region\":" + string(region_marshalled) + ",\"priceList\":" + string(priceList_marshalled) + "}"))
+	return c.JSON(Dtos.InitInfoResponseDto{
+		Region:    regionDto,
+		Geofence:  geofence,
+		PriceList: priceListDto,
+	})
 }
 
 func toGeofenceDto(geofence Models.GeoPolygon) Dtos.GeofenceDto {

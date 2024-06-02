@@ -4,33 +4,25 @@ import (
 	services "ZED-Magdy/Delivery-go/Services"
 	"net/http"
 	"strings"
+
+	"github.com/gofiber/fiber/v2"
 )
 
-func AuthMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Authorization") == "" {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(`{"error": "Unauthorized"}`))
-			return
-		}
+func AuthMiddleware(c *fiber.Ctx) error {
+	if c.Get("Authorization") == "" {
+		return c.Status(http.StatusUnauthorized).JSON(map[string]string{"message": "Unauthorized"})
+	}
 
-		authHeader := strings.Split(r.Header.Get("Authorization"), "Bearer ")
-		if len(authHeader) != 2 {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(`{"error": "Unauthorized"}`))
-			return
-		}
+	authHeader := strings.Split(c.Get("Authorization"), "Bearer ")
+	if len(authHeader) != 2 {
+		return c.Status(http.StatusUnauthorized).JSON(map[string]string{"message": "Unauthorized"})
+	}
 
-		_, err := services.VerifyJwtToken(authHeader[1])
-		if err != nil {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(`{"error": "Unauthorized"}`))
-			return
-		}
+	_, err := services.VerifyJwtToken(authHeader[1])
+	if err != nil {
+		return c.Status(http.StatusUnauthorized).JSON(map[string]string{"message": "Unauthorized"})
+	}
 
-		next.ServeHTTP(w, r)
-	})
+	return c.Next()
+
 }
