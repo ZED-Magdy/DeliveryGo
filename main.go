@@ -1,19 +1,17 @@
 package main
 
 import (
-	"ZED-Magdy/Delivery-go/Handlers"
-	"ZED-Magdy/Delivery-go/Middlewares"
-	"encoding/json"
-	"strings"
 	"ZED-Magdy/Delivery-go/Models"
+	"encoding/json"
 	"log"
 	"os"
-	// "github.com/eko/gocache/lib/v4/cache"
-	// redis_store "github.com/eko/gocache/store/redis/v4"
+	"strings"
+
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	en_translations "github.com/go-playground/validator/v10/translations/en"
+	"github.com/gofiber/contrib/swagger"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/compress"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -21,6 +19,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/idempotency"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/joho/godotenv"
+
 	// "github.com/redis/go-redis/v9"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -51,7 +50,7 @@ func main() {
 	}))
 
 	app.Use(compress.New(compress.Config{
-		Level: compress.LevelBestSpeed, // 1
+		Level: compress.LevelBestSpeed,
 	}))
 
 	app.Use(healthcheck.New(healthcheck.Config{
@@ -61,16 +60,11 @@ func main() {
 
 	app.Use(idempotency.New())
 	app.Use(recover.New())
-	db := initDb()
-	trans, validate := initValidator()
-	userHandler := Handlers.NewUserHandler(*db, validate, trans)
-	app.Post("/api/register", userHandler.CreateUser)
-	app.Post("/api/login", userHandler.Login)
-	initInfoHandler := Handlers.NewInitInfoHandler(*db)
-	authenticatedRoutes := app.Group("/api", Middlewares.AuthMiddleware)
-	authenticatedRoutes.Get("/user", userHandler.GetCurrentUser)
-	authenticatedRoutes.Get("/init-info", initInfoHandler.GetInitialInformation)
-	app.Listen(":8000")
+	app.Use(swagger.New())
+
+	SetupRoutes(app)
+
+	app.Listen(":8080")
 }
 
 func initValidator() (ut.Translator, *validator.Validate) {

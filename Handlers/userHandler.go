@@ -5,6 +5,7 @@ import (
 	"ZED-Magdy/Delivery-go/Models"
 	services "ZED-Magdy/Delivery-go/Services"
 	"net/http"
+	"strings"
 
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
@@ -117,11 +118,13 @@ func (h *UserHandler) GetCurrentUser(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(http.StatusUnauthorized).JSON(map[string]string{"message": err.Error()})
 	}
+	token := strings.Split(c.Get("Authorization"), "Bearer ")[1]
 	userDto := Dtos.UserDto{
 		ID:    user.ID,
 		Name:  user.Name,
 		Email: user.Email,
 		Phone: user.Phone,
+		Token: &token,
 	}
 
 	return c.Status(http.StatusOK).JSON(userDto)

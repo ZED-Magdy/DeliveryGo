@@ -45,3 +45,19 @@ func (a *AuthService) User() (*Models.User, error) {
 
 	return &user, nil
 }
+
+func (a *AuthService) UserId()(uint, error) {
+	authHeader := strings.Split(a.ctx.Get("Authorization"), "Bearer ")
+	if len(authHeader) != 2 {
+		return 0, errors.New("Unauthorized")
+	}
+
+	token := authHeader[1]
+	tokenObj, err := VerifyJwtToken(token)
+
+	if err != nil {
+		return 0, err
+	}
+
+	return uint(tokenObj.Claims.(jwt.MapClaims)["subject"].(float64)), nil
+}
