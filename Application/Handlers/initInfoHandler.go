@@ -1,23 +1,21 @@
-package Handlers
+package Application
 
 import (
-	"ZED-Magdy/Delivery-go/Dtos"
+	"ZED-Magdy/Delivery-go/Application/Dtos"
 	"ZED-Magdy/Delivery-go/Models"
 	services "ZED-Magdy/Delivery-go/Services"
+	"ZED-Magdy/Delivery-go/infrastructure/database"
 	"net/http"
 
 	"github.com/gofiber/fiber/v2"
-	"gorm.io/gorm"
 )
 
 type InitInfoHandler struct {
-	db gorm.DB
+	dbService *database.Service
 }
 
-func NewInitInfoHandler(db gorm.DB) *InitInfoHandler {
-	return &InitInfoHandler{
-		db: db,
-	}
+func NewInitInfoHandler(dbService *database.Service) *InitInfoHandler {
+	return &InitInfoHandler{dbService}
 }
 
 func (h *InitInfoHandler) GetInitialInformation(c *fiber.Ctx) error {
@@ -30,33 +28,26 @@ func (h *InitInfoHandler) GetInitialInformation(c *fiber.Ctx) error {
 	}
 
 	region := Models.Region{}
-	err := h.db.Raw(`
-		SELECT
-		id,
-		name, 
-		price_list_id, 
-		ST_AsText(geofence) as geofence
-		FROM regions 
-		WHERE ST_Contains(geofence, ST_GeomFromText(?))`, "POINT("+lat+" "+lng+")").Scan(&region).Error
+	err := h.dbService.Db.Table("regions").Select("regions.id, price_lists.id, regions.name, price_list_id, ST_AsText(geofence) as geofence").Where("ST_Contains(geofence, ST_GeomFromText(?))", "POINT("+lat+" "+lng+")").Joins("left join price_lists on price_lists.id = regions.price_list_id ").Scan(&region).Error
 
 	if region.ID == 0 || err != nil {
 		return c.Status(http.StatusNotFound).JSON(map[string]string{"message": "Region not found"})
 	}
 
-	user, err := services.NewAuthService(c, h.db).User()
+	user, err := services.NewAuthService(c, *h.dbService.Db).User()
 
 	if err != nil {
 		return c.Status(http.StatusUnauthorized).JSON(map[string]string{"message": "Unauthorized"})
 	}
 
-	h.db.Exec(`Update users set current_region_id = ? where id = ?`, region.ID, user.ID)
+	h.dbService.Db.Exec(`Update users set current_region_id = ? where id = ?`, region.ID, user.ID)
 
 	geofence := toGeofenceDto(region.Geofence)
 	regionDto := Dtos.RegionDto{
 		Name: region.Name,
 	}
 	priceList := Models.PriceList{}
-	h.db.First(&priceList, region.PriceListId)
+	h.dbService.Db.First(&priceList, region.PriceListId)
 	priceListDto := Dtos.PriceListDto{
 		KmCost:           priceList.KmCost,
 		CancellationCost: priceList.CancellationCost,

@@ -1,10 +1,8 @@
-version: '3.8'
-
 services:
   app:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: ./docker/Dockerfile
     depends_on:
       db:
         condition: service_healthy
@@ -18,7 +16,7 @@ services:
     ports:
       - "81:80"
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./docker/nginx.conf:/etc/nginx/nginx.conf
     depends_on:
       - app
     networks:
@@ -30,10 +28,10 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: '${DB_ROOT_PASSWORD}'
       MYSQL_DATABASE: '${DB_DATABASE}'
-      MYSQL_USER: '${DB_USER}'
+      MYSQL_USER: '${DB_USERNAME}'
       MYSQL_PASSWORD: '${DB_PASSWORD}'
     volumes:
-      - ./db_data:/var/lib/mysql
+      - ./docker/db_data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
@@ -45,7 +43,7 @@ services:
   redis:
     image: redis:latest
     volumes:
-      - ./redis_data:/data
+      - ./docker/redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s

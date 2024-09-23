@@ -1,20 +1,13 @@
-package main
+package server
 
 import (
-	"ZED-Magdy/Delivery-go/Handlers"
+	Application "ZED-Magdy/Delivery-go/Application/Handlers"
 	"ZED-Magdy/Delivery-go/Middlewares"
-
-	"github.com/gofiber/fiber/v2"
 )
 
-func SetupRoutes(app *fiber.App) {
-
-	db := initDb()
-	trans, validate := initValidator()
-
-	//Handlers
-	userHandler := Handlers.NewUserHandler(*db, validate, trans)
-	initInfoHandler := Handlers.NewInitInfoHandler(*db)
+func (app *FiberServer) SetupRoutes() {
+	userHandler := Application.NewUserHandler(app.DbService, app.ValidatorService)
+	initInfoHandler := Application.NewInitInfoHandler(app.DbService)
 
 	//Auth routes
 	app.Post("/api/register", userHandler.CreateUser)
