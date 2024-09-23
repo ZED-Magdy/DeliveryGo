@@ -28,7 +28,18 @@ func (h *InitInfoHandler) GetInitialInformation(c *fiber.Ctx) error {
 	}
 
 	region := Models.Region{}
-	err := h.dbService.Db.Table("regions").Select("regions.id, price_lists.id, regions.name, price_list_id, ST_AsText(geofence) as geofence").Where("ST_Contains(geofence, ST_GeomFromText(?))", "POINT("+lat+" "+lng+")").Joins("left join price_lists on price_lists.id = regions.price_list_id ").Scan(&region).Error
+	err := h.dbService.Db.Table("regions").Select(`
+							regions.id, 
+							price_lists.id, 
+							regions.name, 
+							price_list_id,
+							ST_AsText(geofence) as geofence`,
+						).Where(
+							"ST_Contains(geofence, ST_GeomFromText(?))",
+							 "POINT("+lat+" "+lng+")",
+						).Joins(
+							"left join price_lists on price_lists.id = regions.price_list_id",
+						).Scan(&region).Error
 
 	if region.ID == 0 || err != nil {
 		return c.Status(http.StatusNotFound).JSON(map[string]string{"message": "Region not found"})
